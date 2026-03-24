@@ -296,7 +296,53 @@ ghra/
 
 ---
 
-## 7. Key Notes
+## 7. Security
+
+### 7.1 DDS Security (SROS2)
+
+All ROS2 DDS traffic is encrypted and authenticated via SROS2:
+- **Mutual TLS** between all ROS2 nodes (containers + ESP32s)
+- **Per-node certificates** with access control policies
+- **Enforce mode**: unauthenticated nodes are rejected
+
+Setup:
+1. Run `generate_sros2_keys.sh` in the ros2-core container (one-time)
+2. Keystore is mounted read-only into all containers
+3. ESP32 micro-ROS nodes need their enclaves flashed alongside firmware
+
+Environment variables (set in docker-compose.yml):
+- `ROS_SECURITY_KEYSTORE=/security/keystore`
+- `ROS_SECURITY_ENABLE=true`
+- `ROS_SECURITY_STRATEGY=Enforce`
+
+### 7.2 Web Dashboard Security
+
+- **HTTPS (TLS)**: Self-signed cert via nginx, all traffic encrypted
+- **Basic Auth**: Username/password required to access dashboard
+- **WSS**: rosbridge WebSocket proxied through nginx TLS (wss:// not ws://)
+
+Setup:
+1. Run `generate_tls_certs.sh` to create self-signed cert (one-time)
+2. Run `generate_htpasswd.sh` to create dashboard password (one-time)
+3. Both files are mounted read-only into nginx container
+
+### 7.3 Network Separation
+
+- **Control network**: Dedicated switch + WiFi AP for ROS2 traffic only
+- **Internet network**: Separate WiFi for internet access
+- Dell OptiPlex has two NICs: one for each network
+- Phone connects to control WiFi AP to access dashboard
+
+### 7.4 Phone Access (PWA)
+
+The web dashboard is a Progressive Web App:
+- Open `https://<optiplex-ip>` on phone browser (connected to control WiFi)
+- "Add to Home Screen" for app-like experience
+- No Bluetooth or native app needed
+
+---
+
+## 8. Key Notes
 
 - **DAC → VFD is direct**: GP8211S outputs 0-10V natively, connects straight to VFD AVI/ACM. No amplification needed.
 - **Laser sensor power**: Needs dedicated 3.3V @ 300mA+ supply, NOT from ESP32's 3.3V regulator (insufficient current). Use a small LDO from the 5V rail or a separate 3.3V DIN rail PSU.

@@ -1,5 +1,10 @@
 # Run with: podman-compose up -d
 # Or: podman compose up -d (if using podman-compose plugin)
+#
+# Before first run:
+#   1. Generate SROS2 keys: see docker/ros2-core/security/generate_sros2_keys.sh
+#   2. Generate TLS certs: see docker/web-dashboard/certs/generate_tls_certs.sh
+#   3. Generate dashboard password: see docker/web-dashboard/generate_htpasswd.sh
 
 services:
   micro-ros-agent:
@@ -8,6 +13,12 @@ services:
     command: udp4 --port 8888
     network_mode: host
     restart: unless-stopped
+    environment:
+      - ROS_SECURITY_KEYSTORE=/security/keystore
+      - ROS_SECURITY_ENABLE=true
+      - ROS_SECURITY_STRATEGY=Enforce
+    volumes:
+      - ./ros2-core/security/keystore:/security/keystore:ro
 
   ros2-core:
     build:
@@ -18,6 +29,8 @@ services:
     restart: unless-stopped
     depends_on:
       - micro-ros-agent
+    volumes:
+      - ./ros2-core/security/keystore:/security/keystore:ro
 
   web-dashboard:
     build:
@@ -25,5 +38,8 @@ services:
       dockerfile: Dockerfile
     container_name: ghra-web-dashboard
     ports:
-      - "8080:80"
+      - "443:443"
     restart: unless-stopped
+    volumes:
+      - ./web-dashboard/certs:/etc/nginx/certs:ro
+      - ./web-dashboard/.htpasswd:/etc/nginx/.htpasswd:ro

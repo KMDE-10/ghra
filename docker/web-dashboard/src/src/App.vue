@@ -115,7 +115,9 @@ export default {
   },
   methods: {
     connectRos() {
-      const rosbridgeUrl = `ws://${window.location.hostname}:9090`
+      // Connect via WSS through nginx reverse proxy (TLS-secured)
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      const rosbridgeUrl = `${protocol}://${window.location.host}/rosbridge`
 
       this.ros = new ROSLIB.Ros({ url: rosbridgeUrl })
 
