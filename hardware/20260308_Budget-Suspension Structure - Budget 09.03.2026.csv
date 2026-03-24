@@ -1,0 +1,60 @@
+Item,Link,Quantity,Cost w/o VAT,Supplier,Transportation fee,Total cost w/o VAT,2458.29,,,
+Motorized Trolley,https://www.crossfer.de/TD10A-Elektrische-Laufkatze-230V-1000KG-Last-inkl,1,€142.02,https://www.crossfer.de/,20,€162.02,,,,
+IPE 140 (I-Beam with 13.2 kg/m),"https://b2b.neuberg.lu/de/artikel/stahl,4405,ipe-1406100-s235jr,140333/?search_keywords=ipe+140",18,€20.56,Neuberg (Lux),100,€470.00,,,,
+Wiltec Trolley up to 500 kg,https://www.amazon.de/-/en/VEVOR-Trolley-Capacity-Adjustable-Straight/dp/B0D3DD9J57/ref=pb_allspark_dp_sims_pao_desktop_session_based_d_sccl_2_2/257-4052758-5850529?pd_rd_w=IMoF5&content-id=amzn1.sym.cdb3cd5b-5b29-4346-8344-90969a97eb77&pf_rd_p=cdb3cd5b-5b29-4346-8344-90969a97eb77&pf_rd_r=YV69GJ9A4R9X1AACA1B2&pd_rd_wg=fJFit&pd_rd_r=d91ce05a-6039-481a-9d4c-1b85a46550fe&pd_rd_i=B0D3DD9J57&psc=1,5,€21.17,Amazon,10,€115.85,,,,
+,,,,,,,,,,
+Rust protection Paint,https://www.amazon.de/dp/B0FBMKLGBH?th=1,1,€116.39,Amazon,10,€126.39,,,,
+,,,,,,,,,,
+Aluminium Profile,MOTEDIS,,,,,€0.00,,,,
+Fixture for IPE to GH truss,https://www.amazon.de/-/en/gp/product/B0F9PNK55S,6,€13.99,Amazon,10,€93.94,,,,
+"Rubber Cable 220V - 1,5mm2 30 m",https://www.amazon.de/-/en/EMOS-extension-waterproof-temperature-insulation/dp/B014WKRMC2/ref=sr_1_6?crid=D5609347S2VB&dib=eyJ2IjoiMSJ9.yp90qh368eefp313Kn6BLRUm_-I8R959vcsj7NrNoH-a-Ss0UCKkVFtdcARlTneZDqgHHrqw9bdigjGHfUHT0dBu4-HQURADqan4A3A-TY9rgkQ_8ZQg1sCJolK1YfkDB3jQ6WcRA4angoYyfuaHUhAnolxGFMIlY_8cf35Ulo0dQtp8K-J6qdaRMbCxLvgtio7WEYkULTLCPzoSUqqX5YJd3pA5oxRynfUu93FxdGDhPQdqQY9oLZy40PsXilpjXTjUFZl2xX_171N_EH0tFhjSlHVjLxnWrYHPlNElNww.HIz_A8FYkTwSpSRLcXNOzE_ty4nIK8wzB1IDD3tSAqE&dib_tag=se&keywords=30%2Bm%2Bgummikabel&qid=1773078179&sprefix=30%2Bm%2Bgummikabel%2B%2Caps%2C160&sr=8-6&th=1,1,€67.00,Amazon,10,€77.00,,,,
+Hutschienensicherung 16 A,,2,,,,,,,,
+Frequency invertor,https://www.amazon.de/-/en/Frequency-Inverter-Controller-Efficient-Performance/dp/B0CCF3Q1CT/,1,€42.96,Amazon,10,€52.96,,,,
+Hutschiene,1.5 m,,,,,,,,,
+Konrad Service,,12,€75.00,,,€900.00,,,,
+Konrad Material,,1,€200.00,,,€200.00,,,,
+,,,,,,,,,,
+,,,,,,,,,,
+Tools for painting,,1,€50.00,,,,,,,
+Degreaser / Thinner,,,€20.00,,,,,,,
+Cable Box(es),,,€50.00,,,,,,,
+,,,,,,,,,,
+,,,,,,,,,,
+,,,,,,,,,,
+,,,,,,,€260.13,,Setup:,
+Ethernet Cable,https://www.aliexpress.com/item/1005010138635011.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%2030.53%21EUR%2015.29%21%21EUR%2015.29%21%21%21%402103890117730743065944528e571e%2112000051289141192%21ct%21DE%213749634846%21%211%210%21,2,€16.00,Aliexpress,,€32.00,,,ROS Core on Dell Optiplex ,
+Throughhole Cable Fittings,https://www.aliexpress.com/item/1005010449732226.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%201.89%21EUR%201.89%21%21EUR%201.89%21%21%21%402103890117730743065944528e571e%2112000052449321854%21ct%21DE%213749634846%21%212%210%21,2,€2.50,Aliexpress,,€5.00,,,Switch next to Dell,
+Relais Rail Mount 5V,https://www.aliexpress.com/item/1005004552509292.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%203.19%21EUR%203.19%21%21EUR%203.19%21%21%21%402103890117730743065944528e571e%2112000029583608025%21ct%21DE%213749634846%21%214%210%21,4,€3.19,Aliexpress,,€12.76,,,Controlbox on Laufkatze,
+W5500 Ethernet Module for ESP32,https://www.aliexpress.com/item/1005008385092801.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%2019.99%21EUR%2019.99%21%21EUR%2019.99%21%21%21%402103890117730743065944528e571e%2112000051619472718%21ct%21DE%213749634846%21%211%210%21,5,€4.00,Aliexpress,,€20.00,,,,ESP for Inverter control??
+Red LED Pushbutton for manual override,https://www.aliexpress.com/item/1005007935799554.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%203.89%21EUR%203.89%21%21EUR%203.89%21%21%21%402103890117730743065944528e571e%2112000042932991721%21ct%21DE%213749634846%21%212%210%21,2,€3.89,Aliexpress,,€7.78,,,,Two Relais
+Green LED Pushbutton for manual override,https://www.aliexpress.com/item/1005007935799554.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%203.89%21EUR%203.89%21%21EUR%203.89%21%21%21%402103890117730743065944528e571e%2112000042932991733%21ct%21DE%213749634846%21%212%210%21,2,€3.89,Aliexpress,,€7.78,,,,Two Schütze (Circuit Controllers) 24v
+Hutschienen Netzteil für ESP32 5V,https://www.aliexpress.com/item/1005010515354755.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%205.19%21EUR%205.19%21%21EUR%205.19%21%21%21%402103890117730743065944528e571e%2112000052666978512%21ct%21DE%213749634846%21%214%210%21,5,€5.19,Aliexpress,,€25.95,,,,Power supply 5v for ESP
+Hutschienen Netzteil für Schütz 24V,https://www.aliexpress.com/item/1005010515354755.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%205.19%21EUR%205.19%21%21EUR%205.19%21%21%21%402103890117730743065944528e571e%2112000052666978514%21ct%21DE%213749634846%21%213%210%21,3,€5.19,Aliexpress,,€15.57,,,,Power supply 24v for Schütz
+ESP32 Plus Kit,https://www.aliexpress.com/item/1005007820190456.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%207.02%21EUR%206.49%21%21EUR%206.49%21%21%21%402103890117730743065944528e571e%2112000042325137322%21ct%21DE%213749634846%21%214%210%21,4,€6.49,Aliexpress,,€25.96,,,,W5500 Module für Network
+Laser Distance,https://www.aliexpress.com/item/1005009250844924.html?spm=a2g0o.cart.0.0.33374ae4ldSuVt&mp=1&pdp_npi=6%40dis%21EUR%21EUR%2020.79%21EUR%2020.79%21%21EUR%2019.51%21%21%21%40211b819117730745922156150e9d48%2112000048478391304%21ct%21DE%213749634846%21%212%210%21,2,€20.77,Aliexpress,€6.00,€41.54,,,,RJ45 Port
+Box for Control large,https://de.aliexpress.com/item/1005005480970197.html?spm=a2g0o.productlist.main.10.4820ZEz8ZEz84h&algo_pvid=ba4568d4-3484-42a2-b0df-725be235151d&algo_exp_id=ba4568d4-3484-42a2-b0df-725be235151d-9&pdp_ext_f=%7B%22order%22%3A%228664%22%2C%22eval%22%3A%221%22%2C%22fromPage%22%3A%22search%22%7D&pdp_npi=6%40dis%21EUR%212.68%212.59%21%21%2120.87%2120.17%21%40211b441e17730747018711025ec812%2112000033258291320%21sea%21DE%213749634846%21X%211%210%21n_tag%3A-29919%3Bd%3Ac55857b0%3Bm03_new_user%3A-29895&curPageLogUid=Wb5HhpVQlF6D&utparam-url=scene%3Asearch%7Cquery_from%3A%7Cx_object_id%3A1005005480970197%7C_p_origin_prod%3A,2,€11.29,Aliexpress,,€22.58,,,,Power input via Cable Through hole
+Box for sensor small,https://www.aliexpress.com/item/1005005480970197.html?spm=a2g0o.detail.0.0.1af06a8c9sDCLz&mp=1&pdp_npi=6%40dis%21EUR%21EUR%205.04%21EUR%204.89%21%21EUR%204.89%21%21%21%40211b618e17730747895703468e8549%2112000033258291324%21ct%21DE%213749634846%21%214%210%21,4,€4.89,Aliexpress,,€19.56,,,,
+Ethernet Ports for Sensor Boxes,https://www.aliexpress.com/item/1005009884563859.html?spm=a2g0o.detail.0.0.7f5c5fc6WCjEBe&mp=1&pdp_npi=6%40dis%21EUR%21EUR%204.05%21EUR%203.79%21%21EUR%203.79%21%21%21%402103834817730750627661639edb32%2112000052676830252%21ct%21DE%213749634846%21%214%210%21,4,€3.79,Aliexpress,,€15.16,,,,
+Terminal Blocks,https://de.aliexpress.com/item/1005004501344762.html?spm=a2g0o.productlist.main.10.177beZeqeZeqQW&algo_pvid=61f8830b-2280-4339-9a00-087c98d9c51e&algo_exp_id=61f8830b-2280-4339-9a00-087c98d9c51e-9&pdp_ext_f=%7B%22order%22%3A%2244%22%2C%22eval%22%3A%221%22%2C%22fromPage%22%3A%22search%22%7D&pdp_npi=6%40dis%21EUR%218.66%218.49%21%21%219.73%219.54%21%40211b813b17730765861145420e747b%2112000029384204142%21sea%21DE%213749634846%21X%211%210%21n_tag%3A-29919%3Bd%3Ac55857b0%3Bm03_new_user%3A-29895&curPageLogUid=UBmoCmYr6PxX&utparam-url=scene%3Asearch%7Cquery_from%3A%7Cx_object_id%3A1005004501344762%7C_p_origin_prod%3A,1,€8.49,Aliexpress,,€8.49,,,Controlbox für Verfahren mit Rot oder Grünen buttons,
+,,,,,,,,,,Manual buttons
+,,,,,,,,,,ESP
+,,,,,,,,,,W5500
+,,,,,,,,,,Network 
+,,,,,,,,,,RJ45 Port
+,,,,,,,,,,Power supply 
+,,,,,,,,,,Power input
+,,,,,,,,,,SicherungsKasten für den Motor?
+,,,,,,,,,,
+,,,,,,,,,,
+,,,,,,,,,Ethernet Kabel zur Laufkatze,
+,,,,,,,,,Stromkabel zur Laufkatze,
+,,,,,,,,,,
+,,,,,,,,,Controlbox für Laser Sensor Unit,
+,,,,,,,,,,Sensor Module
+,,,,,,,,,,ESP
+,,,,,,,,,,W5500
+,,,,,,,,,,Network 
+,,,,,,,,,,RJ45 Port
+,,,,,,,,,,Power supply 
+,,,,,,,,,,Power input
+,,,,,,,,,,Sicherung

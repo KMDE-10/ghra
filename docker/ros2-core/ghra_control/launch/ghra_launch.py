@@ -1,0 +1,29 @@
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        # Rosbridge WebSocket server (port 9090)
+        Node(
+            package='rosbridge_server',
+            executable='rosbridge_websocket',
+            name='rosbridge_websocket',
+            parameters=[{
+                'port': 9090,
+                'unregister_timeout': 10.0,
+            }],
+        ),
+        # GHRA control node
+        Node(
+            package='ghra_control',
+            executable='control_node',
+            name='ghra_control_node',
+            parameters=[{
+                'speed_fast': 1.0,
+                'speed_slow': 0.3,
+                'position_min_mm': 100.0,
+                'position_max_mm': 15000.0,
+            }],
+        ),
+    ])

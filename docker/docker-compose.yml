@@ -1,0 +1,29 @@
+# Run with: podman-compose up -d
+# Or: podman compose up -d (if using podman-compose plugin)
+
+services:
+  micro-ros-agent:
+    image: docker.io/microros/micro-ros-agent:humble
+    container_name: ghra-micro-ros-agent
+    command: udp4 --port 8888
+    network_mode: host
+    restart: unless-stopped
+
+  ros2-core:
+    build:
+      context: ./ros2-core
+      dockerfile: Dockerfile
+    container_name: ghra-ros2-core
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - micro-ros-agent
+
+  web-dashboard:
+    build:
+      context: ./web-dashboard
+      dockerfile: Dockerfile
+    container_name: ghra-web-dashboard
+    ports:
+      - "8080:80"
+    restart: unless-stopped
