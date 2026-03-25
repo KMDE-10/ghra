@@ -2,7 +2,10 @@
 
 ## Context
 
-Build a ROS2-based system to control an AC motor on a rail (motorized trolley / Laufkatze on IPE 140 I-beam). The motor speed is controlled via a VFD receiving a 0-10V analog signal from a DAC. Position feedback comes from a laser distance sensor. The system includes a web dashboard and a wireless remote control with 4 buttons.
+Build a ROS2-based system to control an AC motor on a rail (motorized trolley / Laufkatze on IPE 140 I-beam). The motor speed is controlled via a VFD receiving a 0-10V analog signal from a DAC. Position feedback comes from a laser distance sensor. The system includes a web dashboard (PWA for phone access), a wireless 4-button remote, and full TLS encryption on all communications.
+
+**Development**: Podman on WSL (Windows)
+**Deployment**: Ubuntu 22.04 on Dell OptiPlex x86
 
 ---
 
@@ -35,8 +38,8 @@ Build a ROS2-based system to control an AC motor on a rail (motorized trolley / 
 
 | Component | Why | Est. Cost |
 |---|---|---|
-| **Network Switch** (unmanaged, 5+ ports, e.g. TP-Link TL-SG105) | Connects Dell OptiPlex + ESP32 #1 (via W5500) on wired LAN | ~15-25 EUR |
-| **WiFi Access Point / Router** | ESP32 #2 (remote) connects via WiFi; Dell OptiPlex needs to be on same network | ~20-40 EUR (or use existing router) |
+| **Network Switch** (unmanaged, 5+ ports, e.g. TP-Link TL-SG105) | Connects Dell OptiPlex + ESP32 #1 (via W5500) on control LAN | ~15-25 EUR |
+| **WiFi Access Point** (dedicated for control network) | ESP32 #2 (remote) + phone connect via WiFi; isolated from internet | ~20-40 EUR |
 | **Mirror / Reflector** for laser sensor | Mounted at end of I-beam for distance measurement | ~5-10 EUR |
 | **3.3V regulator or separate PSU for laser sensor** | Laser needs 2.5-3.3V @ 300mA; ESP32's 3.3V pin may not supply enough current reliably | ~2-5 EUR |
 | **2-wire shielded cable** (for DAC to VFD analog signal) | 0-10V analog signal from DAC to VFD AVI/ACM terminals | ~5 EUR |
@@ -48,6 +51,7 @@ Build a ROS2-based system to control an AC motor on a rail (motorized trolley / 
 |---|---|
 | ~~Op-amp / level shifter for DAC~~ | GP8211S outputs 0-10V natively with internal boost circuit |
 | ~~USB-to-Serial adapter~~ | ESP32 Plus Kit has USB-C with CH340C onboard |
+| ~~Bluetooth module / app~~ | Phone accesses web dashboard as PWA over control WiFi |
 
 ### 1.4 Future (Out of Scope)
 
@@ -59,39 +63,45 @@ Build a ROS2-based system to control an AC motor on a rail (motorized trolley / 
 ## 2. System Architecture
 
 ```
-                        ┌─────────────────────────────────────────────┐
-                        │         Dell OptiPlex (x86 Linux)           │
-                        │         Ubuntu 22.04 + Podman (WSL)         │
-                        │                                             │
-                        │  ┌──────────────┐  ┌────────────────────┐  │
-                        │  │ micro-ROS     │  │ ros2-core          │  │
-                        │  │ Agent         │  │ (control node +    │  │
-                        │  │ (UDP bridge)  │  │  rosbridge:9090)   │  │
-                        │  └──────┬────────┘  └────────┬───────────┘  │
-                        │         │  ROS2 DDS          │              │
-                        │         └────────┬───────────┘              │
-                        │  ┌───────────────┴──────────────────────┐   │
-                        │  │ web-dashboard (Vue.js + nginx :8080) │   │
-                        │  └──────────────────────────────────────┘   │
-                        └─────────────────┬───────────────────────────┘
-                                          │ Ethernet
-                                    ┌─────┴─────┐
-                                    │  Network   │
-                                    │  Switch    │
-                                    └──┬─────┬──┘
-                           Ethernet    │     │    WiFi (via AP/Router)
-                                       │     │
-         ┌─────────────────────────────┘     └──────────────────┐
-         │                                                      │
-┌────────┴───────────────┐                    ┌─────────────────┴──────┐
-│ ESP32 #1 (Motor Box)   │                    │ ESP32 #2 (Remote)      │
-│ micro-ROS over UDP/ETH │                    │ micro-ROS over WiFi    │
-│                        │                    │                        │
-│ VSPI → W5500 (ETH)    │                    │ GPIO12 ← Green1 (FwdF) │
-│ I2C  → GP8211S DAC    │                    │ GPIO13 ← Green2 (FwdS) │
-│ UART2 ← Laser Sensor  │                    │ GPIO14 ← Red1   (BwdS) │
-│ GPIO → Relays (FWD/REV)│                   │ GPIO27 ← Red2   (BwdF) │
-└────────┬───────────────┘                    └────────────────────────┘
+   Phone (PWA)──────────┐
+   https://<ip>          │ Control WiFi
+                         │
+                        ┌─────────────────────────────────────────────────────┐
+                        │         Dell OptiPlex (x86 Linux)                   │
+                        │         Ubuntu 22.04 + Podman                       │
+                        │         NIC1: Control net  NIC2: Internet           │
+                        │                                                     │
+                        │  ┌──────────────┐  ┌──────────────────────────┐    │
+                        │  │ micro-ROS     │  │ ros2-core                │    │
+                        │  │ Agent         │  │  control_node            │    │
+                        │  │ (UDP:8888)    │  │  rosbridge (WS:9090)     │    │
+                        │  └──────┬────────┘  └────────┬─────────────────┘    │
+                        │         │  ROS2 DDS (SROS2 TLS encrypted)    │      │
+                        │         └────────┬───────────┘               │      │
+                        │  ┌───────────────┴────────────────────────┐  │      │
+                        │  │ web-dashboard (Vue.js PWA + nginx)     │  │      │
+                        │  │  HTTPS :443 + basic auth               │  │      │
+                        │  │  WSS proxy → rosbridge :9090           │  │      │
+                        │  └────────────────────────────────────────┘  │      │
+                        └─────────────────┬────────────────────────────┘      │
+                                          │ Ethernet (Control net)            │
+                                    ┌─────┴─────┐     ┌─────────────┐        │
+                                    │  Network   │     │ WiFi AP     │────────┘
+                                    │  Switch    │─────│ (Control)   │
+                                    └──┬─────┬──┘     └──────┬──────┘
+                           Ethernet    │     │          WiFi  │
+                                       │     │                │
+         ┌─────────────────────────────┘     │      ┌─────────┘
+         │                                   │      │
+┌────────┴───────────────┐      ┌────────────┴──────┴──────┐
+│ ESP32 #1 (Motor Box)   │      │ ESP32 #2 (Remote)        │
+│ micro-ROS over UDP/ETH │      │ micro-ROS over WiFi      │
+│                        │      │                           │
+│ VSPI → W5500 (ETH)    │      │ GPIO12 ← Green1 (FwdF)   │
+│ I2C  → GP8211S DAC    │      │ GPIO13 ← Green2 (FwdS)   │
+│ UART2 ← Laser Sensor  │      │ GPIO14 ← Red1   (BwdS)   │
+│ GPIO → Relays (FWD/REV)│     │ GPIO27 ← Red2   (BwdF)   │
+└────────┬───────────────┘      └──────────────────────────┘
          │ 0-10V (VOUT → AVI)
          │ GND   (GND  → ACM)
          │ Relay → FWD terminal
@@ -153,7 +163,7 @@ Build a ROS2-based system to control an AC motor on a rail (motorized trolley / 
 ### 3.2 ESP32 #2 (Wireless Remote)
 
 **Power**: DIN Rail 5V PSU or battery pack
-**Network**: WiFi (same SSID/subnet as Dell OptiPlex)
+**Network**: WiFi (control network AP)
 
 | Button | Color | Function | ESP32 GPIO | Pull-up |
 |---|---|---|---|---|
@@ -185,17 +195,19 @@ Note: Buttons connect GPIO to GND when pressed (active LOW).
 
 ## 4. Software Stack
 
-### 4.1 Podman Compose (Dell OptiPlex, WSL)
+### 4.1 Podman Compose (Dell OptiPlex)
 
-**OS**: Ubuntu 22.04 (WSL) + Podman + podman-compose
+**Dev**: Podman on WSL (Windows)
+**Deploy**: Podman on Ubuntu 22.04 (Dell OptiPlex)
 
 | Container | Image | Purpose | Ports |
 |---|---|---|---|
 | `micro-ros-agent` | `docker.io/microros/micro-ros-agent:humble` | Bridges micro-ROS (ESP32s) ↔ ROS2 DDS | UDP 8888 |
-| `ros2-core` | Custom (ros:humble-ros-base + rosbridge_suite) | Control node + rosbridge WebSocket | WS 9090 |
-| `web-dashboard` | Vue.js build + nginx | Speed control UI | HTTP 8080 |
+| `ros2-core` | Custom (ros:humble-ros-base + rosbridge_suite + SROS2) | Control node + rosbridge WebSocket | WS 9090 (internal) |
+| `web-dashboard` | Vue.js PWA build + nginx | HTTPS dashboard + WSS reverse proxy | HTTPS 443 |
 
 All containers use `network_mode: host` for ROS2 DDS multicast.
+SROS2 keystore mounted read-only into micro-ros-agent and ros2-core.
 
 ### 4.2 ROS2 Topics
 
@@ -213,21 +225,26 @@ All containers use `network_mode: host` for ROS2 DDS multicast.
 
 ### 4.3 ESP32 #1 Firmware (Arduino IDE / arduino-cli + micro-ROS)
 
+- **Build tool**: Arduino IDE or `arduino-cli` (FQBN: `esp32:esp32:esp32`)
+- **Libraries**: micro_ros_arduino (v2.0.8-humble), DFRobot_GP8XXX (v1.1.0), Wire, SPI, ETH (built-in)
 - **Transport**: micro-ROS over UDP via W5500 Ethernet (ETH.h native driver)
-- **DAC library**: DFRobot_GP8XXX (I2C, 15-bit, 0-10V)
+- **DAC**: DFRobot_GP8XXX I2C, 15-bit, 0-10V output
 - **Laser protocol**: UART2 @ 19200, hex commands:
   - Single shot: `AA 00 00 20 00 01 00 00 21`
   - Continuous: `AA 00 00 20 00 01 00 04 25`
   - Response: 13 bytes, distance = `(byte[8]<<8)|byte[9]` in mm
 - **Subscribers**: `/motor/speed_cmd`, `/motor/direction`, `/motor/enable`
 - **Publishers**: `/carriage/position` (mm), `/motor/speed_feedback`
+- **Relay interlock**: 50ms both-off delay before switching FWD/REV
 - **Control loop**: ~50Hz DAC update, ~10Hz laser read
 
 ### 4.4 ESP32 #2 Firmware (Arduino IDE / arduino-cli + micro-ROS)
 
+- **Build tool**: Arduino IDE or `arduino-cli` (FQBN: `esp32:esp32:esp32`)
+- **Libraries**: micro_ros_arduino (v2.0.8-humble), WiFi (built-in)
 - **Transport**: micro-ROS over WiFi UDP
 - **Publishers**: `/remote/button_event`
-- **Logic**: Debounce (20ms), publish on press and release
+- **Logic**: Debounce (20ms), publish on press (+) and release (-)
 - 4 buttons → 4 GPIO with internal pull-ups, active LOW
 
 ### 4.5 ROS2 Control Node (Python, runs in ros2-core container)
@@ -242,103 +259,130 @@ All containers use `network_mode: host` for ROS2 DDS multicast.
 - Publishes `/motor/speed_cmd` and `/motor/direction`
 - Safety: position boundary checks using `/carriage/position`
 
-### 4.6 Web Dashboard (Vue.js + roslibjs)
+### 4.6 Web Dashboard (Vue.js PWA + roslibjs)
 
-- Connects to rosbridge WebSocket on port 9090
-- Speed slider (0-100%) → `/motor/speed_cmd`
-- Direction toggle (FWD/REV) → `/motor/direction`
-- Enable/disable switch → `/motor/enable`
-- Live position readout from `/carriage/position`
-- Connection status indicator
-
----
-
-## 5. Project Directory Structure
-
-```
-ghra/
-├── hardware/                    # BOM CSV + reference images
-├── docker/
-│   ├── docker-compose.yml       # Podman-compatible
-│   ├── ros2-core/
-│   │   ├── Dockerfile
-│   │   ├── entrypoint.sh
-│   │   └── ghra_control/        # ROS2 Python package
-│   │       ├── package.xml
-│   │       ├── setup.py
-│   │       └── ghra_control/
-│   │           ├── __init__.py
-│   │           └── control_node.py
-│   └── web-dashboard/
-│       ├── Dockerfile
-│       ├── nginx.conf
-│       └── src/                 # Vue.js app
-├── firmware/
-│   ├── esp32-motor/             # Arduino sketch
-│   │   └── esp32-motor.ino
-│   └── esp32-remote/            # Arduino sketch
-│       └── esp32-remote.ino
-└── docs/
-    └── system-plan.md           # This file
-```
+- **Served via**: nginx over HTTPS (port 443) with self-signed TLS cert
+- **Auth**: Basic auth (username/password via .htpasswd)
+- **ROS2 connection**: WSS via nginx reverse proxy (`wss://<host>/rosbridge` → `ws://localhost:9090`)
+- **PWA**: Installable on phone home screen via manifest.json
+- **Features**:
+  - Speed slider (0-100%) → `/motor/speed_cmd`
+  - Direction toggle (FWD/STOP/REV) → `/motor/direction`
+  - Enable/disable switch → `/motor/enable`
+  - Live position readout from `/carriage/position`
+  - Speed feedback readout
+  - Connection status indicator
 
 ---
 
-## 6. Implementation Order
+## 5. Security
 
-1. **Phase 1**: Podman compose + micro-ROS agent + ros2-core containers
-2. **Phase 2**: ESP32 #1 firmware (W5500 Ethernet + micro-ROS + DAC output)
-3. **Phase 3**: Laser sensor UART integration on ESP32 #1
-4. **Phase 4**: Web dashboard (Vue.js + rosbridge + roslibjs)
-5. **Phase 5**: ESP32 #2 remote firmware (WiFi + 4 buttons)
-6. **Phase 6**: Control node (button→speed mapping, safety limits)
-7. **Future**: E-stop hardware circuit
-
----
-
-## 7. Security
-
-### 7.1 DDS Security (SROS2)
+### 5.1 DDS Security (SROS2)
 
 All ROS2 DDS traffic is encrypted and authenticated via SROS2:
 - **Mutual TLS** between all ROS2 nodes (containers + ESP32s)
 - **Per-node certificates** with access control policies
 - **Enforce mode**: unauthenticated nodes are rejected
 
-Setup:
-1. Run `generate_sros2_keys.sh` in the ros2-core container (one-time)
-2. Keystore is mounted read-only into all containers
-3. ESP32 micro-ROS nodes need their enclaves flashed alongside firmware
-
 Environment variables (set in docker-compose.yml):
 - `ROS_SECURITY_KEYSTORE=/security/keystore`
 - `ROS_SECURITY_ENABLE=true`
 - `ROS_SECURITY_STRATEGY=Enforce`
 
-### 7.2 Web Dashboard Security
+### 5.2 Web Dashboard Security
 
-- **HTTPS (TLS)**: Self-signed cert via nginx, all traffic encrypted
+- **HTTPS (TLS)**: Self-signed cert via nginx, all HTTP traffic encrypted
 - **Basic Auth**: Username/password required to access dashboard
 - **WSS**: rosbridge WebSocket proxied through nginx TLS (wss:// not ws://)
 
-Setup:
-1. Run `generate_tls_certs.sh` to create self-signed cert (one-time)
-2. Run `generate_htpasswd.sh` to create dashboard password (one-time)
-3. Both files are mounted read-only into nginx container
+### 5.3 Network Separation
 
-### 7.3 Network Separation
-
-- **Control network**: Dedicated switch + WiFi AP for ROS2 traffic only
-- **Internet network**: Separate WiFi for internet access
+- **Control network**: Dedicated switch + WiFi AP for ROS2 traffic, ESP32s, phone access
+- **Internet network**: Separate WiFi (existing home/office router) for internet only
 - Dell OptiPlex has two NICs: one for each network
-- Phone connects to control WiFi AP to access dashboard
+- Phone connects to control WiFi AP to access the dashboard
 
-### 7.4 Phone Access (PWA)
+### 5.4 First-Time Security Setup
 
-The web dashboard is a Progressive Web App:
-- Open `https://<optiplex-ip>` on phone browser (connected to control WiFi)
-- "Add to Home Screen" for app-like experience
-- No Bluetooth or native app needed
+Run these **once** before first deployment:
+
+```bash
+# 1. Generate SROS2 keys (inside ros2-core container)
+podman-compose run ros2-core generate_sros2_keys.sh /security/keystore
+
+# 2. Generate TLS certificate for web dashboard
+cd docker/web-dashboard/certs && bash generate_tls_certs.sh
+
+# 3. Generate dashboard login password
+cd docker/web-dashboard && bash generate_htpasswd.sh admin
+```
+
+Files generated by these scripts are gitignored and must not be committed.
+
+---
+
+## 6. Project Directory Structure
+
+```
+ghra/
+├── .gitignore                           # Excludes keystore, certs, passwords
+├── hardware/                            # BOM CSV + reference images
+├── docker/
+│   ├── docker-compose.yml               # Podman-compatible, SROS2 + TLS volumes
+│   ├── ros2-core/
+│   │   ├── Dockerfile                   # ROS2 Humble + rosbridge + SROS2
+│   │   ├── entrypoint.sh               # Auto-enables SROS2 if keystore present
+│   │   ├── security/
+│   │   │   ├── generate_sros2_keys.sh  # One-time SROS2 key generation
+│   │   │   └── keystore/               # (gitignored) Generated SROS2 keys
+│   │   └── ghra_control/               # ROS2 Python package
+│   │       ├── package.xml
+│   │       ├── setup.py
+│   │       ├── setup.cfg
+│   │       ├── resource/ghra_control
+│   │       ├── launch/ghra_launch.py
+│   │       └── ghra_control/
+│   │           ├── __init__.py
+│   │           └── control_node.py
+│   └── web-dashboard/
+│       ├── Dockerfile                   # Vue.js build + nginx
+│       ├── nginx.conf                   # HTTPS, basic auth, WSS proxy
+│       ├── generate_htpasswd.sh         # One-time password generation
+│       ├── .htpasswd                    # (gitignored) Dashboard password
+│       ├── certs/
+│       │   ├── generate_tls_certs.sh   # One-time TLS cert generation
+│       │   ├── server.crt              # (gitignored)
+│       │   └── server.key              # (gitignored)
+│       └── src/                         # Vue.js PWA app
+│           ├── index.html              # PWA meta tags
+│           ├── package.json
+│           ├── vite.config.js
+│           ├── public/
+│           │   └── manifest.json       # PWA manifest
+│           └── src/
+│               ├── main.js
+│               └── App.vue             # Dashboard UI + WSS connection
+├── firmware/
+│   ├── esp32-motor/                     # Arduino sketch (ESP32 #1)
+│   │   └── esp32-motor.ino
+│   └── esp32-remote/                    # Arduino sketch (ESP32 #2)
+│       └── esp32-remote.ino
+└── docs/
+    └── system-plan.md                   # This file
+```
+
+---
+
+## 7. Implementation Order
+
+1. **Phase 1**: Podman compose + micro-ROS agent + ros2-core containers
+2. **Phase 2**: ESP32 #1 firmware (W5500 Ethernet + micro-ROS + DAC output)
+3. **Phase 3**: Laser sensor UART integration on ESP32 #1
+4. **Phase 4**: Web dashboard (Vue.js PWA + HTTPS + rosbridge WSS)
+5. **Phase 5**: ESP32 #2 remote firmware (WiFi + 4 buttons)
+6. **Phase 6**: Control node (button-to-speed mapping, safety limits)
+7. **Phase 7**: SROS2 key generation + enforce mode across all nodes
+8. **Future**: E-stop hardware circuit
 
 ---
 
@@ -347,6 +391,8 @@ The web dashboard is a Progressive Web App:
 - **DAC → VFD is direct**: GP8211S outputs 0-10V natively, connects straight to VFD AVI/ACM. No amplification needed.
 - **Laser sensor power**: Needs dedicated 3.3V @ 300mA+ supply, NOT from ESP32's 3.3V regulator (insufficient current). Use a small LDO from the 5V rail or a separate 3.3V DIN rail PSU.
 - **VFD direction**: Controlled by relays closing FWD or REV terminals to COM, not by analog signal. Speed magnitude only via 0-10V.
+- **Relay interlock**: Always turn both relays off and wait 50ms before switching direction. Never close FWD and REV simultaneously.
 - **micro-ROS agent**: Run with `udp4 --port 8888` to accept both Ethernet and WiFi ESP32 connections.
 - **GPIO14 caution**: On ESP32-WROOM-32D, GPIO14 outputs PWM at boot. Use with pull-up so button default state is HIGH (unpressed).
 - **ESP32 Arduino core**: v3.3.7 installed. If micro_ros_arduino has compatibility issues, downgrade to v2.0.17 via `arduino-cli core install esp32:esp32@2.0.17`.
+- **Phone access**: Connect phone to control WiFi, open `https://<optiplex-ip>`, log in with dashboard credentials, "Add to Home Screen" for PWA experience.
