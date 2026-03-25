@@ -41,9 +41,9 @@ static const int8_t BTN_EVENT_BWD_FAST = 4;
 // ── Configuration ──
 
 // TODO: Change these to your network credentials and Dell OptiPlex IP
-static const char* WIFI_SSID = "YOUR_WIFI_SSID";
-static const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
-static const char* AGENT_IP  = "192.168.1.100";
+static char WIFI_SSID[] = "YOUR_WIFI_SSID";
+static char WIFI_PASS[] = "YOUR_WIFI_PASSWORD";
+static char AGENT_IP[]  = "192.168.1.100";
 static const uint16_t AGENT_PORT = 8888;
 
 static const uint32_t DEBOUNCE_MS = 20;
@@ -102,9 +102,7 @@ void setup() {
     Serial.printf("\nWiFi connected, IP: %s\n", WiFi.localIP().toString().c_str());
 
     // micro-ROS setup
-    IPAddress agent_ip;
-    agent_ip.fromString(AGENT_IP);
-    set_microros_wifi_transports(WIFI_SSID, WIFI_PASS, agent_ip, AGENT_PORT);
+    set_microros_wifi_transports(WIFI_SSID, WIFI_PASS, AGENT_IP, AGENT_PORT);
 
     allocator = rcl_get_default_allocator();
     rclc_support_init(&support, 0, NULL, &allocator);

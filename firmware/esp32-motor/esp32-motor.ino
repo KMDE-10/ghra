@@ -14,6 +14,7 @@
 
 #include <SPI.h>
 #include <ETH.h>
+#include <NetworkInterface.h>
 #include <Wire.h>
 #include <DFRobot_GP8XXX.h>
 
@@ -42,6 +43,9 @@
 #define RELAY_FWD_PIN 25
 #define RELAY_REV_PIN 26
 
+// Board identification: GPIO32 HIGH = this is the motor board
+#define ID_PIN 32
+
 // ── Configuration ──
 
 // TODO: Change this to your Dell OptiPlex IP address
@@ -59,7 +63,7 @@ static const size_t LASER_RESP_LEN = 13;
 
 // ── Globals ──
 
-DFRobot_GP8211S dac(&Wire, 0x58);
+DFRobot_GP8211S dac;
 
 // micro-ROS
 rcl_allocator_t allocator;
@@ -92,7 +96,7 @@ bool eth_connected = false;
 
 // ── Ethernet Event Handler ──
 
-void onEthEvent(WiFiEvent_t event) {
+void onEthEvent(arduino_event_id_t event) {
     switch (event) {
         case ARDUINO_EVENT_ETH_CONNECTED:
             Serial.println("ETH connected");
@@ -210,6 +214,10 @@ void setup() {
     Serial.begin(115200);
     Serial.println("GHRA Motor Controller starting...");
 
+    // Board ID pin: measure 3.3V between GPIO32 and GND to identify motor board
+    pinMode(ID_PIN, OUTPUT);
+    digitalWrite(ID_PIN, HIGH);
+
     // Relay pins
     pinMode(RELAY_FWD_PIN, OUTPUT);
     pinMode(RELAY_REV_PIN, OUTPUT);
@@ -230,9 +238,9 @@ void setup() {
     Serial.println("DAC initialized (0-10V mode)");
 
     // Ethernet (W5500 via SPI)
-    WiFi.onEvent(onEthEvent);
+    Network.onEvent(onEthEvent);
     SPI.begin(ETH_SCLK_PIN, ETH_MISO_PIN, ETH_MOSI_PIN, ETH_CS_PIN);
-    ETH.begin(ETH_CS_PIN, ETH_RST_PIN, ETH_MOSI_PIN, ETH_MISO_PIN, ETH_SCLK_PIN, SPI_ETHERNET_W5500);
+    ETH.begin(ETH_PHY_W5500, 1, ETH_CS_PIN, -1, ETH_RST_PIN, SPI);
 
     // Wait for Ethernet
     Serial.println("Waiting for Ethernet...");
@@ -241,10 +249,19 @@ void setup() {
     }
     Serial.println("Ethernet ready");
 
-    // micro-ROS setup
-    IPAddress agent_ip;
-    agent_ip.fromString(AGENT_IP);
-    set_microros_native_ethernet_udp_transports(agent_ip, AGENT_PORT);
+    // micro-ROS setup (reuse wifi UDP transport — works over ETH on ESP32 shared lwIP stack)
+    static struct micro_ros_agent_locator locator;
+    locator.address.fromString(AGENT_IP);
+    locator.port = AGENT_PORT;
+
+    rmw_uros_set_custom_transport(
+        false,
+        (void *) &locator,
+        arduino_wifi_transport_open,
+        arduino_wifi_transport_close,
+        arduino_wifi_transport_write,
+        arduino_wifi_transport_read
+    );
 
     allocator = rcl_get_default_allocator();
     rclc_support_init(&support, 0, NULL, &allocator);
