@@ -13,11 +13,12 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'paho-mqtt'],
     zip_safe=True,
     entry_points={
         'console_scripts': [
             'control_node = ghra_control.control_node:main',
+            'mqtt_bridge = ghra_control.mqtt_bridge:main',
         ],
     },
 )

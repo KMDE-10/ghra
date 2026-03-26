@@ -2,8 +2,8 @@
   <div class="dashboard">
     <h1>GHRA Motor Control</h1>
 
-    <div class="status-bar" :class="{ connected: rosConnected, disconnected: !rosConnected }">
-      {{ rosConnected ? 'Connected to ROS2' : 'Disconnected' }}
+    <div class="status-bar" :class="{ connected: mqttConnected, disconnected: !mqttConnected }">
+      {{ mqttConnected ? 'Connected' : 'Disconnected' }}
     </div>
 
     <div class="panels">
@@ -79,24 +79,20 @@
 </template>
 
 <script>
-import ROSLIB from 'roslib'
+import mqtt from 'mqtt'
 
 export default {
   name: 'App',
   data() {
     return {
-      ros: null,
-      rosConnected: false,
+      client: null,
+      mqttConnected: false,
       motorEnabled: false,
       direction: 0,
       speedCmd: 0,
       speedFeedback: 0,
       positionMm: 0,
       positionMaxMm: 15000,
-      // ROS topics
-      speedCmdTopic: null,
-      directionTopic: null,
-      enableTopic: null,
     }
   },
   computed: {
@@ -105,77 +101,43 @@ export default {
     },
   },
   mounted() {
-    this.connectRos()
+    this.connectMqtt()
   },
   beforeUnmount() {
-    if (this.ros) this.ros.close()
+    if (this.client) this.client.end()
   },
   methods: {
-    connectRos() {
-      // Connect via WSS through nginx reverse proxy (TLS-secured)
+    connectMqtt() {
       const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const rosbridgeUrl = `${protocol}://${window.location.host}/rosbridge`
+      const mqttUrl = `${protocol}://${window.location.host}/mqtt`
 
-      this.ros = new ROSLIB.Ros({ url: rosbridgeUrl })
-
-      this.ros.on('connection', () => {
-        console.log('Connected to rosbridge')
-        this.rosConnected = true
-        this.setupTopics()
+      this.client = mqtt.connect(mqttUrl, {
+        reconnectPeriod: 1000,
+        connectTimeout: 5000,
       })
 
-      this.ros.on('error', (error) => {
-        console.error('ROS connection error:', error)
-        this.rosConnected = false
+      this.client.on('connect', () => {
+        console.log('MQTT connected')
+        this.mqttConnected = true
+        this.client.subscribe('motor/speed_feedback')
+        this.client.subscribe('carriage/position')
       })
 
-      this.ros.on('close', () => {
-        console.log('ROS connection closed, reconnecting in 3s...')
-        this.rosConnected = false
-        setTimeout(() => this.connectRos(), 3000)
-      })
-    },
-
-    setupTopics() {
-      // Publishers
-      this.speedCmdTopic = new ROSLIB.Topic({
-        ros: this.ros,
-        name: '/motor/speed_cmd',
-        messageType: 'std_msgs/Float32',
-      })
-      this.speedCmdTopic.advertise()
-
-      this.directionTopic = new ROSLIB.Topic({
-        ros: this.ros,
-        name: '/motor/direction',
-        messageType: 'std_msgs/Int8',
-      })
-      this.directionTopic.advertise()
-
-      this.enableTopic = new ROSLIB.Topic({
-        ros: this.ros,
-        name: '/motor/enable',
-        messageType: 'std_msgs/Bool',
-      })
-      this.enableTopic.advertise()
-
-      // Subscribers
-      const speedFeedbackTopic = new ROSLIB.Topic({
-        ros: this.ros,
-        name: '/motor/speed_feedback',
-        messageType: 'std_msgs/Float32',
-      })
-      speedFeedbackTopic.subscribe((msg) => {
-        this.speedFeedback = msg.data
+      this.client.on('close', () => {
+        this.mqttConnected = false
       })
 
-      const positionTopic = new ROSLIB.Topic({
-        ros: this.ros,
-        name: '/carriage/position',
-        messageType: 'std_msgs/Float32',
+      this.client.on('error', (err) => {
+        console.error('MQTT error:', err)
       })
-      positionTopic.subscribe((msg) => {
-        this.positionMm = msg.data
+
+      this.client.on('message', (topic, payload) => {
+        const val = parseFloat(payload.toString())
+        if (topic === 'motor/speed_feedback') {
+          this.speedFeedback = val
+        } else if (topic === 'carriage/position') {
+          this.positionMm = val
+        }
       })
     },
 
@@ -185,11 +147,9 @@ export default {
         this.speedCmd = 0
         this.direction = 0
       }
-      // Publish enable separately, then speed+direction
-      if (this.enableTopic) {
-        this.enableTopic.publish(new ROSLIB.Message({ data: this.motorEnabled }))
-      }
-      this.publishMotion()
+      this.publish('motor/enable', this.motorEnabled ? '1' : '0')
+      this.publish('motor/direction', String(this.direction))
+      this.publish('motor/speed_cmd', this.speedCmd.toFixed(2))
     },
 
     setDirection(dir) {
@@ -197,28 +157,20 @@ export default {
       if (dir === 0) {
         this.speedCmd = 0
       } else {
-        // Auto-enable motor when a direction is chosen
         this.motorEnabled = true
       }
-      this.publishMotion()
+      this.publish('motor/direction', String(this.direction))
+      this.publish('motor/speed_cmd', this.speedCmd.toFixed(2))
     },
 
     publishSpeed() {
-      this.publishMotion()
+      this.publish('motor/speed_cmd', this.speedCmd.toFixed(2))
     },
 
-    publishMotion() {
-      // Direction first — relay response is most noticeable to user
-      if (this.directionTopic) {
-        this.directionTopic.publish(new ROSLIB.Message({ data: this.direction }))
+    publish(topic, payload) {
+      if (this.client && this.mqttConnected) {
+        this.client.publish(topic, payload, { qos: 0 })
       }
-      if (this.speedCmdTopic) {
-        this.speedCmdTopic.publish(new ROSLIB.Message({ data: this.speedCmd }))
-      }
-    },
-
-    publishDirection() {
-      this.publishAll()
     },
   },
 }
@@ -330,11 +282,6 @@ h1 {
   background: #0a3d62;
   border-color: #3498db;
   color: #3498db;
-}
-
-.direction-btns button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 input[type="range"] {

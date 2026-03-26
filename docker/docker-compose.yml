@@ -1,23 +1,13 @@
 # Run with: podman-compose up -d
-# Or: podman compose up -d (if using podman-compose plugin)
-#
-# Before first run:
-#   1. Generate SROS2 keys: see docker/ros2-core/security/generate_sros2_keys.sh
-#   2. Generate TLS certs: see docker/web-dashboard/certs/generate_tls_certs.sh
-#   3. Generate dashboard password: see docker/web-dashboard/generate_htpasswd.sh
 
 services:
-  micro-ros-agent:
-    image: docker.io/microros/micro-ros-agent:humble
-    container_name: ghra-micro-ros-agent
-    command: udp4 --port 8888 -v4
+  mosquitto:
+    image: docker.io/eclipse-mosquitto:2
+    container_name: ghra-mosquitto
     network_mode: host
     restart: unless-stopped
-    environment:
-      - ROS_SECURITY_ENABLE=false
-      - FASTRTPS_DEFAULT_PROFILES_FILE=/tmp/fastdds_udp.xml
     volumes:
-      - /tmp/fastdds_udp.xml:/tmp/fastdds_udp.xml:ro
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   ros2-core:
     build:
@@ -27,9 +17,10 @@ services:
     network_mode: host
     restart: unless-stopped
     depends_on:
-      - micro-ros-agent
-    volumes:
-      - ./ros2-core/security/keystore:/security/keystore:ro
+      - mosquitto
+    environment:
+      - MQTT_BROKER=127.0.0.1
+      - MQTT_PORT=1883
 
   web-dashboard:
     build:

@@ -1,6 +1,6 @@
 {
   "name": "ghra-dashboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "roslib": "^1.4.1",
+    "mqtt": "^5.3.0",
     "vue": "^3.4.0"
   },
   "devDependencies": {

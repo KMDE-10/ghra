@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-rosbridge-suite \
     ros-humble-ros2cli \
     python3-pip \
+    && pip3 install --no-cache-dir paho-mqtt \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy SROS2 key generation script
