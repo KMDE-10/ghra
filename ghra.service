@@ -1,0 +1,16 @@
+[Unit]
+Description=GHRA Motor Control System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=control
+WorkingDirectory=/home/control/ghra
+Environment=PATH=/home/control/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/control/ghra/start.sh
+ExecStop=/home/control/.local/bin/podman-compose -f /home/control/ghra/docker/docker-compose.yml down
+
+[Install]
+WantedBy=multi-user.target

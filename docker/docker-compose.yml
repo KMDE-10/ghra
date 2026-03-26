@@ -29,6 +29,3 @@ services:
     container_name: ghra-web-dashboard
     network_mode: host
     restart: unless-stopped
-    volumes:
-      - ./web-dashboard/certs:/etc/nginx/certs:ro
-      - ./web-dashboard/.htpasswd:/etc/nginx/.htpasswd:ro

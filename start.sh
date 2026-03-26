@@ -13,7 +13,7 @@ podman-compose down 2>/dev/null || true
 
 # Build and start containers
 echo "Building containers..."
-podman-compose build --quiet
+podman-compose build
 
 echo "Starting Mosquitto + ROS2 + Dashboard..."
 podman-compose up -d
@@ -45,12 +45,5 @@ echo ""
 echo "--- Dashboard ---"
 echo "https://192.168.1.100:8443"
 echo ""
-
-# Open browser if available
-if command -v xdg-open &>/dev/null; then
-    xdg-open "https://192.168.1.100:8443" 2>/dev/null &
-elif command -v firefox &>/dev/null; then
-    firefox "https://192.168.1.100:8443" 2>/dev/null &
-fi
 
 echo "Done. ESP32 connects automatically via MQTT."
