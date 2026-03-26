@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from std_msgs.msg import Float32, Int8, Bool
 
 # Button event encoding from ESP32 #2 remote
@@ -37,8 +38,13 @@ class ControlNode(Node):
             Int8, '/remote/button_event', self.on_button_event, 10)
         self.position_sub = self.create_subscription(
             Float32, '/carriage/position', self.on_position, 10)
+        # Use best-effort volatile QoS to avoid replaying stale enable messages
+        best_effort_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE)
         self.enable_sub = self.create_subscription(
-            Bool, '/motor/enable', self.on_enable, 10)
+            Bool, '/motor/enable', self.on_enable, best_effort_qos)
 
         # Publishers
         self.speed_pub = self.create_publisher(Float32, '/motor/speed_cmd', 10)
@@ -94,19 +100,23 @@ class ControlNode(Node):
     def on_position(self, msg: Float32):
         self.current_position = msg.data
 
-        # Safety: stop if out of bounds
-        pos_min = self.get_parameter('position_min_mm').value
-        pos_max = self.get_parameter('position_max_mm').value
-        if self.current_position <= pos_min or self.current_position >= pos_max:
-            self.publish_command(0.0, DIR_STOP)
+        # Safety: stop if out of bounds (only if we have a valid reading)
+        if self.current_position > 0.0:
+            pos_min = self.get_parameter('position_min_mm').value
+            pos_max = self.get_parameter('position_max_mm').value
+            if self.current_position <= pos_min or self.current_position >= pos_max:
+                self.publish_command(0.0, DIR_STOP)
 
     def on_enable(self, msg: Bool):
+        prev = self.enabled
         self.enabled = msg.data
-        if not self.enabled:
-            self.publish_command(0.0, DIR_STOP)
-            self.get_logger().info('Motor disabled')
-        else:
-            self.get_logger().info('Motor enabled')
+        # Only act on actual state changes to avoid message flooding
+        if self.enabled != prev:
+            if not self.enabled:
+                self.publish_command(0.0, DIR_STOP)
+                self.get_logger().info('Motor disabled')
+            else:
+                self.get_logger().info('Motor enabled')
 
     def publish_command(self, speed: float, direction: int):
         speed_msg = Float32()

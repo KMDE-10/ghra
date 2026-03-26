@@ -28,7 +28,6 @@
             <button
               :class="{ active: direction === -1 }"
               @click="setDirection(-1)"
-              :disabled="!motorEnabled"
             >REV</button>
             <button
               :class="{ active: direction === 0 }"
@@ -37,7 +36,6 @@
             <button
               :class="{ active: direction === 1 }"
               @click="setDirection(1)"
-              :disabled="!motorEnabled"
             >FWD</button>
           </div>
         </div>
@@ -51,7 +49,6 @@
             step="0.01"
             v-model.number="speedCmd"
             @input="publishSpeed"
-            :disabled="!motorEnabled"
           />
         </div>
 
@@ -146,18 +143,21 @@ export default {
         name: '/motor/speed_cmd',
         messageType: 'std_msgs/Float32',
       })
+      this.speedCmdTopic.advertise()
 
       this.directionTopic = new ROSLIB.Topic({
         ros: this.ros,
         name: '/motor/direction',
         messageType: 'std_msgs/Int8',
       })
+      this.directionTopic.advertise()
 
       this.enableTopic = new ROSLIB.Topic({
         ros: this.ros,
         name: '/motor/enable',
         messageType: 'std_msgs/Bool',
       })
+      this.enableTopic.advertise()
 
       // Subscribers
       const speedFeedbackTopic = new ROSLIB.Topic({
@@ -181,36 +181,44 @@ export default {
 
     toggleEnable() {
       this.motorEnabled = !this.motorEnabled
-      if (this.enableTopic) {
-        this.enableTopic.publish(new ROSLIB.Message({ data: this.motorEnabled }))
-      }
       if (!this.motorEnabled) {
         this.speedCmd = 0
         this.direction = 0
-        this.publishSpeed()
-        this.publishDirection()
       }
+      // Publish enable separately, then speed+direction
+      if (this.enableTopic) {
+        this.enableTopic.publish(new ROSLIB.Message({ data: this.motorEnabled }))
+      }
+      this.publishMotion()
     },
 
     setDirection(dir) {
       this.direction = dir
-      this.publishDirection()
       if (dir === 0) {
         this.speedCmd = 0
-        this.publishSpeed()
+      } else {
+        // Auto-enable motor when a direction is chosen
+        this.motorEnabled = true
       }
+      this.publishMotion()
     },
 
     publishSpeed() {
+      this.publishMotion()
+    },
+
+    publishMotion() {
+      // Direction first — relay response is most noticeable to user
+      if (this.directionTopic) {
+        this.directionTopic.publish(new ROSLIB.Message({ data: this.direction }))
+      }
       if (this.speedCmdTopic) {
         this.speedCmdTopic.publish(new ROSLIB.Message({ data: this.speedCmd }))
       }
     },
 
     publishDirection() {
-      if (this.directionTopic) {
-        this.directionTopic.publish(new ROSLIB.Message({ data: this.direction }))
-      }
+      this.publishAll()
     },
   },
 }

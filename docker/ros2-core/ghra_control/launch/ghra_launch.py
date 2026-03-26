@@ -11,7 +11,7 @@ def generate_launch_description():
             name='rosbridge_websocket',
             parameters=[{
                 'port': 9090,
-                'unregister_timeout': 10.0,
+                'unregister_timeout': 86400.0,
             }],
             arguments=['--ros-args', '--enclave', '/rosbridge_websocket'],
         ),

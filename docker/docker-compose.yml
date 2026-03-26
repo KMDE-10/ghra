@@ -10,15 +10,14 @@ services:
   micro-ros-agent:
     image: docker.io/microros/micro-ros-agent:humble
     container_name: ghra-micro-ros-agent
-    command: udp4 --port 8888
+    command: udp4 --port 8888 -v4
     network_mode: host
     restart: unless-stopped
     environment:
-      - ROS_SECURITY_KEYSTORE=/security/keystore
-      - ROS_SECURITY_ENABLE=true
-      - ROS_SECURITY_STRATEGY=Enforce
+      - ROS_SECURITY_ENABLE=false
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/tmp/fastdds_udp.xml
     volumes:
-      - ./ros2-core/security/keystore:/security/keystore:ro
+      - /tmp/fastdds_udp.xml:/tmp/fastdds_udp.xml:ro
 
   ros2-core:
     build:
