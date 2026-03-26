@@ -48,9 +48,15 @@
 
 // ── Configuration ──
 
-// TODO: Change this to your Dell OptiPlex IP address
+// Dell OptiPlex (micro-ROS agent)
 static const char* AGENT_IP = "192.168.1.100";
 static const uint16_t AGENT_PORT = 8888;
+
+// Static IP for this ESP32
+static const IPAddress STATIC_IP(192, 168, 1, 11);
+static const IPAddress GATEWAY(192, 168, 1, 1);
+static const IPAddress SUBNET(255, 255, 255, 0);
+static const IPAddress DNS(192, 168, 1, 1);
 
 // Direction relay interlock delay (ms)
 static const uint32_t RELAY_INTERLOCK_DELAY_MS = 50;
@@ -241,13 +247,14 @@ void setup() {
     Network.onEvent(onEthEvent);
     SPI.begin(ETH_SCLK_PIN, ETH_MISO_PIN, ETH_MOSI_PIN, ETH_CS_PIN);
     ETH.begin(ETH_PHY_W5500, 1, ETH_CS_PIN, -1, ETH_RST_PIN, SPI);
+    ETH.config(STATIC_IP, GATEWAY, SUBNET, DNS);
 
     // Wait for Ethernet
     Serial.println("Waiting for Ethernet...");
     while (!eth_connected) {
         delay(100);
     }
-    Serial.println("Ethernet ready");
+    Serial.printf("Ethernet ready — IP: %s\n", ETH.localIP().toString().c_str());
 
     // micro-ROS setup (reuse wifi UDP transport — works over ETH on ESP32 shared lwIP stack)
     static struct micro_ros_agent_locator locator;

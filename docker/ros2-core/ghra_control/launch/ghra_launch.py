@@ -13,6 +13,7 @@ def generate_launch_description():
                 'port': 9090,
                 'unregister_timeout': 10.0,
             }],
+            arguments=['--ros-args', '--enclave', '/rosbridge_websocket'],
         ),
         # GHRA control node
         Node(
@@ -25,5 +26,6 @@ def generate_launch_description():
                 'position_min_mm': 100.0,
                 'position_max_mm': 15000.0,
             }],
+            arguments=['--ros-args', '--enclave', '/ghra_control_node'],
         ),
     ])

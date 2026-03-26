@@ -37,8 +37,7 @@ services:
       context: ./web-dashboard
       dockerfile: Dockerfile
     container_name: ghra-web-dashboard
-    ports:
-      - "8443:443"
+    network_mode: host
     restart: unless-stopped
     volumes:
       - ./web-dashboard/certs:/etc/nginx/certs:ro
