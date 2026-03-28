@@ -4,7 +4,7 @@
  * Interfaces:
  *   - W5500 Ethernet (SPI) -> MQTT broker on Dell OptiPlex
  *   - GP8211S DAC (I2C, 0x58) -> 0-10V to VFD AVI input
- *   - Laser distance sensor (UART2, 19200 baud) -> carriage position
+ *   - Laser distance sensor M01 (SoftwareSerial, 9600 baud) -> carriage position
  *   - 2x Relays (GPIO) -> VFD FWD/REV terminals
  *
  * MQTT Topics:
@@ -17,6 +17,7 @@
 #include <Wire.h>
 #include <DFRobot_GP8XXX.h>
 #include <PubSubClient.h>
+#include <SoftwareSerial.h>
 
 // ── Pin Definitions ──
 
@@ -29,13 +30,13 @@
 #define DAC_SDA_PIN   21
 #define DAC_SCL_PIN   22
 
-#define LASER_RX_PIN  16
-#define LASER_TX_PIN  17
+#define LASER_RX_PIN  33
+#define LASER_TX_PIN  32
 
 #define RELAY_FWD_PIN 25
 #define RELAY_REV_PIN 26
 
-#define ID_PIN 32
+#define ID_PIN 27
 
 // ── Configuration ──
 
@@ -50,17 +51,20 @@ static const char* MQTT_CLIENT_ID = "ghra_motor_esp32";
 
 static const uint32_t RELAY_INTERLOCK_DELAY_MS = 50;
 
-// Laser sensor UART
-static const uint32_t LASER_BAUD = 19200;
-static const uint8_t LASER_CMD_SINGLE[] = {0xAA, 0x00, 0x00, 0x20, 0x00, 0x01, 0x00, 0x00, 0x21};
-static const size_t LASER_CMD_LEN = sizeof(LASER_CMD_SINGLE);
-static const size_t LASER_RESP_LEN = 13;
+// Laser sensor M01 (SoftwareSerial, 9600 baud, continuous mode)
+static const uint8_t LASER_CMD_CONTINUOUS[] = {0xAA,0x00,0x00,0x21,0x00,0x01,0x00,0x00,0x22};
 
 // ── Globals ──
 
 DFRobot_GP8211S dac;
+SoftwareSerial laserSerial(LASER_RX_PIN, LASER_TX_PIN);
 EthernetClient ethClient;
 PubSubClient mqtt(ethClient);
+
+// Laser frame parser state
+static uint8_t laser_buf[16];
+static int laser_pos = 0;
+static float laser_distance_mm = -1.0f;
 
 // State
 float current_speed = 0.0f;
@@ -68,7 +72,6 @@ int8_t current_direction = 0;
 bool motor_enabled = false;
 
 // Timers
-static uint32_t last_laser_ms = 0;
 static uint32_t last_feedback_ms = 0;
 static uint32_t last_stats_ms = 0;
 
@@ -99,24 +102,55 @@ void setDirection(int8_t dir) {
 
 // ── Laser Sensor ──
 
-float readLaserDistance() {
-    while (Serial2.available()) Serial2.read();
-    Serial2.write(LASER_CMD_SINGLE, LASER_CMD_LEN);
-    uint32_t start = millis();
-    while (Serial2.available() < (int)LASER_RESP_LEN) {
-        if (millis() - start > 500) return -1.0f;
-        mqtt.loop();  // Keep processing MQTT while waiting for laser
-        delay(1);
+static bool laserChecksumOK(const uint8_t* f, int n) {
+    if (n < 3) return false;
+    uint32_t s = 0;
+    for (int i = 1; i < n - 1; i++) s += f[i];
+    return ((uint8_t)s) == f[n - 1];
+}
+
+static uint32_t laserDecodeBCD(const uint8_t* b) {
+    uint32_t v = 0;
+    for (int i = 0; i < 4; i++) {
+        v = v * 100 + ((b[i] >> 4) & 0x0F) * 10 + (b[i] & 0x0F);
     }
-    uint8_t resp[LASER_RESP_LEN];
-    Serial2.readBytes(resp, LASER_RESP_LEN);
-    uint16_t distance_mm = ((uint16_t)resp[8] << 8) | resp[9];
-    return (float)distance_mm;
+    return v;
+}
+
+void laserWake() {
+    laserSerial.write(LASER_CMD_CONTINUOUS, sizeof(LASER_CMD_CONTINUOUS));
+    laserSerial.flush();
+}
+
+// Non-blocking: call from loop(), processes available bytes
+void laserProcess() {
+    while (laserSerial.available()) {
+        uint8_t x = laserSerial.read();
+        if (laser_pos == 0 && x != 0xAA) continue;
+        laser_buf[laser_pos++] = x;
+        if (laser_pos == 13) {
+            if (laser_buf[4] == 0x00 && laser_buf[5] == 0x04 && laserChecksumOK(laser_buf, 13)) {
+                uint8_t func = laser_buf[3];
+                if (func == 0x20 || func == 0x21 || func == 0x22) {
+                    laser_distance_mm = (float)laserDecodeBCD(&laser_buf[6]);
+                    if (mqtt.connected()) {
+                        char buf[16];
+                        snprintf(buf, sizeof(buf), "%.0f", laser_distance_mm);
+                        mqtt.publish("carriage/position", buf);
+                    }
+                }
+            }
+            laser_pos = 0;
+        }
+        if (laser_pos >= 13) laser_pos = 0;
+    }
 }
 
 // ── MQTT Callback ──
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
+    laserWake();
+
     char buf[32];
     if (length >= sizeof(buf)) length = sizeof(buf) - 1;
     memcpy(buf, payload, length);
@@ -175,7 +209,8 @@ void setup() {
     digitalWrite(RELAY_FWD_PIN, LOW);
     digitalWrite(RELAY_REV_PIN, LOW);
 
-    Serial2.begin(LASER_BAUD, SERIAL_8N1, LASER_RX_PIN, LASER_TX_PIN);
+    laserSerial.begin(9600);
+    laserWake();
 
     Wire.begin(DAC_SDA_PIN, DAC_SCL_PIN);
     while (dac.begin() != 0) {
@@ -265,16 +300,7 @@ void loop() {
 
     handleSerialCommand();
 
-    // Laser at 2Hz (non-blocking between reads to avoid blocking mqtt.loop)
-    if (millis() - last_laser_ms >= 500) {
-        last_laser_ms = millis();
-        float d = readLaserDistance();
-        if (d >= 0.0f && mqtt.connected()) {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%.1f", d);
-            mqtt.publish("carriage/position", buf);
-        }
-    }
+    laserProcess();
 
     // Speed feedback at 5Hz
     if (millis() - last_feedback_ms >= 200) {
