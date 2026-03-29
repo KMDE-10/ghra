@@ -9,7 +9,7 @@
  *
  * MQTT Topics:
  *   Subscribes: motor/speed_cmd, motor/direction, motor/enable
- *   Publishes:  motor/speed_feedback, carriage/position
+ *   Publishes:  carriage/position
  */
 
 #include <SPI.h>
@@ -72,7 +72,6 @@ int8_t current_direction = 0;
 bool motor_enabled = false;
 
 // Timers
-static uint32_t last_feedback_ms = 0;
 static uint32_t last_stats_ms = 0;
 static uint32_t last_laser_wake_ms = 0;
 
@@ -305,16 +304,6 @@ void loop() {
     if (millis() - last_laser_wake_ms >= 10000) {
         last_laser_wake_ms = millis();
         laserWake();
-    }
-
-    // Speed feedback at 5Hz
-    if (millis() - last_feedback_ms >= 200) {
-        last_feedback_ms = millis();
-        if (mqtt.connected()) {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%.2f", current_speed);
-            mqtt.publish("motor/speed_feedback", buf);
-        }
     }
 
     // Stats
