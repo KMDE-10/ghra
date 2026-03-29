@@ -74,6 +74,7 @@ bool motor_enabled = false;
 // Timers
 static uint32_t last_feedback_ms = 0;
 static uint32_t last_stats_ms = 0;
+static uint32_t last_laser_wake_ms = 0;
 
 // ── DAC Output ──
 
@@ -149,8 +150,6 @@ void laserProcess() {
 // ── MQTT Callback ──
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    laserWake();
-
     char buf[32];
     if (length >= sizeof(buf)) length = sizeof(buf) - 1;
     memcpy(buf, payload, length);
@@ -301,6 +300,12 @@ void loop() {
     handleSerialCommand();
 
     laserProcess();
+
+    // Re-wake laser every 10s to prevent timeout
+    if (millis() - last_laser_wake_ms >= 10000) {
+        last_laser_wake_ms = millis();
+        laserWake();
+    }
 
     // Speed feedback at 5Hz
     if (millis() - last_feedback_ms >= 200) {
