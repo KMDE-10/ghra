@@ -84,6 +84,8 @@ The repo is split into:
 
 ## 2. Design principles
 
+These principles describe the system as shipped — **standalone mode (§3.A)**, no router, no DHCP, no DNS. §3.B documents how each principle relaxes when a router is introduced.
+
 - **Air‑gapped control LAN.** The `192.168.1.0/24` segment carries motor traffic and nothing else. There is intentionally no router on it. The MQTT broker runs without authentication (`allow_anonymous true`), which is acceptable because nothing else is on the wire and the LAN has no internet path.
 - **Static everything.** No DHCP, no mDNS, no service discovery. The OptiPlex is `.100`, the motor ESP is `.11`, the remote ESP is `.12`. If you renumber the LAN you re‑flash both ESP32s.
 - **One broker, one schema.** All command and telemetry traffic crosses Mosquitto over MQTT. The ROS 2 side mirrors the relevant topics for debugging and policy enforcement (limits, interlocks). The dashboard speaks MQTT‑over‑WebSocket directly to the broker through an nginx reverse proxy, *not* through ROS.
@@ -96,38 +98,56 @@ The repo is split into:
 
 ## 3. Networking
 
-The entire system lives on a flat IPv4 subnet **192.168.1.0/24** with the Dell OptiPlex as the broker host at **.100**. The control devices have *static* IPs hard‑coded in firmware. After a fresh OS / network‑config wipe, you reproduce the link by:
+The system can run in two modes. Pick one and stick to it; mixing leads to silent dual‑routing bugs.
 
-### 3.1 Static IPs that are baked into firmware (cannot be changed without re‑flashing)
+|  | **§3.A Standalone** | **§3.B Routed** |
+|---|---|---|
+| Router on the LAN | none | yes, with DHCP + DNS |
+| ESP32 IP assignment | static, baked into firmware | DHCP reservation by MAC |
+| Broker addressed by | IP literal `192.168.1.100` | DNS name (still requires firmware change to use it) |
+| OptiPlex internet | optional, via ESP32‑S3 USB WiFi stick | through the router's WAN |
+| Trust boundary | the air gap | the router's firewall |
+| Phone reaches dashboard via | a separate Wi‑Fi AP cabled into the switch | the router's own Wi‑Fi |
+
+The firmware currently ships in **§3.A** mode. Moving to **§3.B** is a code change, not just a config change — see §3.B.3.
+
+---
+
+### 3.A Standalone mode (no router, no DHCP, no DNS) — *the way it ships*
+
+The control LAN is a single switch with the OptiPlex, the two ESP32s, and a Wi‑Fi access point hung off it. There is no DHCP server, no DNS resolver, no default route, and no internet on this segment. Every host has a fixed address known at compile time.
+
+#### 3.A.1 IP plan (cannot be changed without re‑flashing)
 
 | Device | IP | MAC (set in firmware) | Source |
 |---|---|---|---|
-| Dell OptiPlex (MQTT broker) | `192.168.1.100/24` | (host NIC, set in netplan) | `firmware/*/esp32-*.ino` → `mqtt_server` |
+| Dell OptiPlex (MQTT broker) | `192.168.1.100/24` | (host NIC, set in netplan/NM) | `firmware/*/esp32-*.ino` → `mqtt_server` |
 | ESP32 #1 — motor controller | `192.168.1.11/24` | `DE:AD:BE:EF:00:11` | `firmware/esp32-motor/esp32-motor.ino:43–44` |
 | ESP32 #2 — remote | `192.168.1.12/24` | `DE:AD:BE:EF:00:12` | `firmware/esp32-remote/esp32-remote.ino:35–36` |
-| Default gateway | `192.168.1.1` | — | both ESP32s, only used for ARP / outbound that never happens |
-| DNS server | `192.168.1.1` | — | both ESP32s (unused — they don't resolve hostnames) |
+| Default gateway field | `192.168.1.1` | — | both ESP32s; only used for ARP, no traffic exits |
+| DNS field | `192.168.1.1` | — | both ESP32s; unused (no name lookups) |
 
-Anything outside that subnet **will not** be reachable by the ESP32s. If you change the OptiPlex IP, you must re‑flash both ESP32s.
+Anything outside that subnet **will not** be reachable by the ESP32s. If you change the OptiPlex IP you must re‑flash both ESP32s.
 
-### 3.2 Linux side — what to configure on the OptiPlex
+#### 3.A.2 OptiPlex Linux config
 
-The OptiPlex has two NICs by design: one for the control LAN, one (optional) for internet via the ESP32‑S3 stick. The control NIC is the one that physically goes to the TP‑Link switch.
+The OptiPlex has two NICs by design: one for the control LAN (mandatory), one for optional internet via the ESP32‑S3 stick. The control NIC is the one cabled to the TP‑Link switch.
 
 1. **Identify the two NICs** — `ip -br link`.
 
-2. **Configure the control NIC with a static address** (no DHCP). With NetworkManager:
+2. **Configure the control NIC with a static address** (no DHCP):
 
    ```bash
    nmcli con add type ethernet ifname <ctrl-nic> con-name ghra-control \
        ipv4.method manual ipv4.addresses 192.168.1.100/24 \
-       ipv4.gateway "" ipv6.method disabled connection.autoconnect yes
+       ipv4.gateway "" ipv4.never-default yes \
+       ipv6.method disabled connection.autoconnect yes
    nmcli con up ghra-control
    ```
 
-   *Do not set a default gateway on this connection* — the LAN has no internet and you don't want a black‑hole default route. Pin `ipv4.never-default yes` on the profile so NetworkManager never silently promotes it.
+   *Do not set a default gateway on this connection* — the LAN has no internet and you don't want a black‑hole default route. `ipv4.never-default yes` keeps NetworkManager from silently promoting it.
 
-3. **Disable IPv6 / mDNS noise on this NIC** — Avahi can flood the segment and the ESP32s ignore it but the broker logs get noisy.
+3. **Disable IPv6 / mDNS noise on this NIC** — Avahi can flood the segment; the ESP32s ignore it but the broker logs get noisy.
 
 4. **Verify reachability** before launching containers:
 
@@ -140,7 +160,7 @@ The OptiPlex has two NICs by design: one for the control LAN, one (optional) for
    - cable & link LEDs on switch and W5500 modules,
    - ESP32 5 V DIN‑rail PSU,
    - W5500 reset wire to GPIO4 (a stuck reset = "W5500 not found!" in serial monitor),
-   - the ESP32 serial console at 115200 (`python3 serial_monitor.py` after editing the device path) — the firmware prints `ETH IP: 192.168.1.x`, `ETH OK`, `MQTT connecting…`, `MQTT connected!`.
+   - ESP32 serial console at 115200 — the firmware prints `ETH IP: 192.168.1.x`, `ETH OK`, `MQTT connecting…`, `MQTT connected!`.
 
 5. **Open MQTT locally** to confirm broker reachability:
 
@@ -151,7 +171,7 @@ The OptiPlex has two NICs by design: one for the control LAN, one (optional) for
 
 6. **Firewall** — if `ufw` is enabled, allow `1883/tcp`, `9001/tcp`, `8443/tcp` from `192.168.1.0/24`.
 
-### 3.3 Internet on the OptiPlex via the ESP32‑S3 USB stick (`esp32-wifi-stick/`)
+#### 3.A.3 Optional internet on the OptiPlex via the ESP32‑S3 USB stick
 
 The control LAN is intentionally air‑gapped. To give the OptiPlex itself internet access (for `apt`, container builds, etc.) the project ships a homemade USB‑WiFi adapter:
 
@@ -159,13 +179,13 @@ The control LAN is intentionally air‑gapped. To give the OptiPlex itself inter
 - `setup_wifi.py` (run as root on the host) opens `/dev/ttyACM0` at **4 000 000 baud**, creates a TUN device `espwifi0`, point‑to‑point `10.0.0.2 ↔ 10.0.0.1`, and adds a default route via the ESP32.
 - `start_wifi.sh` is the convenience wrapper: defaults to **SSID `Secondary Tiphone`, password `ganzgeheim`** on `/dev/ttyACM0`. Edit if the hotspot changed.
 
-Things that go wrong here are catalogued in `esp32-wifi-stick/LEARNINGS.md`. The big ones:
+Things that go wrong here are catalogued in `esp32-wifi-stick/LEARNINGS.md`. Headline issues:
 
 - iPhone Personal Hotspot goes to sleep ~90 s after you leave the settings screen — keep that screen open while connecting.
 - `/dev/ttyACM0` permissions: user must be in `dialout` (`sudo usermod -a -G dialout control && newgrp dialout`).
 - DTR‑on‑open resets the ESP32. Run **once after each plug‑in**: `sudo stty -F /dev/ttyACM0 -hupcl`. The Python script also sets `~HUPCL` via termios as a fallback for baud rates `stty` can't handle.
 - ICMP through NAPT is broken (lwIP limitation) — `ping 8.8.8.8` shows 100 % loss, but `curl https://...` works. Don't use ping to verify.
-- `apt update` sometimes hangs through this path; workaround is to download `.deb`s with `curl` and `dpkg -i`. Or use `Acquire::ForceIPv4=true` in `/etc/apt/apt.conf.d/`.
+- `apt update` sometimes hangs through this path; workaround is to download `.deb`s with `curl` and `dpkg -i`. `Acquire::ForceIPv4=true` did *not* help.
 - `/etc/resolv.conf` is rewritten by `setup_wifi.py` to prepend the upstream DNS. **`systemd-resolved`** on Ubuntu 22.04 will fight you — disable or mask it if DNS keeps reverting:
 
   ```bash
@@ -175,9 +195,123 @@ Things that go wrong here are catalogued in `esp32-wifi-stick/LEARNINGS.md`. The
 
 If you need the WiFi stick at boot, mirror `ghra.service` with a separate `wifi-stick.service` that starts before the network‑online target.
 
-### 3.4 No router, no WAN bridging
+#### 3.A.4 Phone access
+
+The phone joins a separate Wi‑Fi AP that is cabled into the control switch (any travel‑router‑in‑AP‑mode works; ideally with no internet uplink so it doesn't introduce a route off‑LAN). The AP itself is **not** configured by anything in this repo — see §10. From the phone: open `http://192.168.1.100:8443/` and "Add to Home Screen" for the PWA.
+
+#### 3.A.5 No router, no WAN bridging
 
 The control LAN does **not** route to the internet, and the WiFi stick does **not** bridge the two — it only gives the OptiPlex (and only the OptiPlex) outbound NAPT. ESP32s cannot reach the internet and don't need to.
+
+---
+
+### 3.B Routed mode (router providing DHCP + DNS) — *the alternative*
+
+If a small router (OpenWRT, MikroTik, Unifi, etc.) is added to the control LAN, the system becomes friendlier to operate at the cost of a larger trust surface and one firmware change. **The repo does not currently support this mode out of the box** — this section is the migration recipe.
+
+#### 3.B.1 What changes, at a glance
+
+- The OptiPlex stops needing a static netplan/NM profile — it can DHCP.
+- The ESP32‑S3 USB WiFi stick becomes obsolete; the OptiPlex reaches the internet through the router's WAN port.
+- The phone joins the router's Wi‑Fi directly (the separate AP from §3.A.4 is no longer required).
+- ESP32 link‑up gets faster (no static probe on the wire) but can fail open if the router boots slower than the ESP32.
+- A misconfigured router can take down motor traffic — single point of failure on the bus, where §3.A had none.
+
+#### 3.B.2 Router configuration
+
+Subnet **must remain `192.168.1.0/24`** — the firmware's `mqtt_server` literal is on this subnet and we don't want to renumber.
+
+DHCP scope: gateway `192.168.1.1`, DHCP range somewhere like `192.168.1.50 – 192.168.1.250`. **Reserve** the following by MAC so they always land on the IPs the firmware expects:
+
+| Device | MAC | Reserved IP |
+|---|---|---|
+| Dell OptiPlex (broker) | (host NIC MAC; `ip link show <ctrl-nic>`) | `192.168.1.100` |
+| ESP32 #1 motor | `DE:AD:BE:EF:00:11` | `192.168.1.11` |
+| ESP32 #2 remote | `DE:AD:BE:EF:00:12` | `192.168.1.12` |
+
+Static DHCP reservations are **mandatory** because the dashboard URL (`http://192.168.1.100:8443`) and the firmware's `mqtt_server` literal still point at fixed IPs. Without reservations, devices float around the DHCP pool and the broker disappears.
+
+DNS — *optional* — publish hostnames so URLs stop carrying IP literals:
+
+| Name | Resolves to |
+|---|---|
+| `ghra.local` (or `ghra.lan`) | `192.168.1.100` |
+| `motor.ghra.local` | `192.168.1.11` |
+| `remote.ghra.local` | `192.168.1.12` |
+
+Nothing in the current code looks these up; they're for humans (and for §3.B.3 if you do the firmware work).
+
+#### 3.B.3 Firmware: why DHCP + DNS isn't free
+
+The current ESP32 firmware uses a static IP block:
+
+```cpp
+static IPAddress mqtt_server(192, 168, 1, 100);
+Ethernet.begin(mac, ip, dns_addr, gateway, subnet);
+```
+
+Switching the *interface* to DHCP is a one‑line change (`Ethernet.begin(mac);`) but the broker address would still be hard‑coded to `192.168.1.100`. To resolve the broker by hostname, replace `mqtt.setServer(mqtt_server, MQTT_PORT)` with a DNS lookup at boot:
+
+```cpp
+DNSClient dns;
+IPAddress broker;
+dns.begin(Ethernet.dnsServerIP());
+if (dns.getHostByName("ghra.local", broker) == 1) {
+    mqtt.setServer(broker, MQTT_PORT);
+} else {
+    mqtt.setServer(IPAddress(192,168,1,100), MQTT_PORT);   // fallback
+}
+```
+
+Practical pitfalls:
+
+- The Arduino `Ethernet` library's DNS resolver is **single‑shot** at boot. If the lookup fails because the router booted slower than the ESP32, the broker address is invalid until the next reset. The fallback above to the literal IP keeps things working on a cold boot.
+- DHCP **lease renewal** must be polled. `Ethernet.maintain()` is already called in the remote firmware; it must also be added to the motor firmware's `loop()`. Without it, the ESP32 silently drops off the network when the lease expires (typically 12–24 h).
+- If the router's DHCP pool collides with `192.168.1.11/12/100`, things look fine for hours then break weirdly. Always reserve.
+
+A pragmatic compromise: keep the firmware on **static IPs via DHCP reservation** (the wire pretends to be DHCP, but the addresses never change) and skip the DNS work. This is the lowest‑risk path into 3.B and requires only `Ethernet.begin(mac);` + `Ethernet.maintain();` in `firmware/esp32-motor/esp32-motor.ino`.
+
+#### 3.B.4 OptiPlex Linux config
+
+Replace the static `ghra-control` profile from §3.A.2 with a plain DHCP one:
+
+```bash
+nmcli con delete ghra-control 2>/dev/null || true
+nmcli con add type ethernet ifname <ctrl-nic> con-name ghra-control \
+    ipv4.method auto ipv6.method disabled connection.autoconnect yes
+nmcli con up ghra-control
+```
+
+The router's DHCP reservation pins the OptiPlex at `.100`. If the router does *not* publish DNS for the broker, add a static `/etc/hosts` entry so the dashboard URL works without typing an IP:
+
+```
+192.168.1.100   ghra.local mqtt
+```
+
+The Mosquitto container still binds `0.0.0.0:1883` and `0.0.0.0:9001` — no change there.
+
+#### 3.B.5 Phone access
+
+Phone joins the router's Wi‑Fi directly. The dashboard URL becomes whatever you published in DNS (e.g. `http://ghra.local:8443/`). If you want the phone PWA to be installable from a URL the phone trusts, you also need a TLS cert it accepts — see §12.5 for the existing scaffolding.
+
+#### 3.B.6 What you can remove if you go full §3.B
+
+- The ESP32‑S3 USB WiFi stick (`esp32-wifi-stick/`) and `start_wifi.sh`. The `LEARNINGS.md` is still worth reading but the runtime path is gone.
+- The second NIC on the OptiPlex.
+- The standalone Wi‑Fi AP bridging the phone into the wired LAN.
+
+#### 3.B.7 What you must NOT remove
+
+- The MAC addresses in firmware. They are what the DHCP reservations key off.
+- The hardcoded `mqtt_server` IP, *unless* you also do the DNS work in §3.B.3.
+- The 50 ms relay interlock, the laser power supply, the 0–32767 DAC clamp. Those are physical, not network — they don't change with mode.
+
+#### 3.B.8 Trust model
+
+Adding a router widens the trust boundary from "the air gap" to "whatever the router lets in". Two practical consequences:
+
+- If the router's WAN port is plugged into anything, the broker's `allow_anonymous true` is no longer safe. Either turn off WAN, or re‑enable Mosquitto auth (see §9.1) **and** TLS on the dashboard (§12.5).
+- The router's own admin interface is now on the same segment as the broker. Use a strong admin password and turn off its remote management.
 
 ---
 
@@ -254,7 +388,7 @@ The bridge in `mqtt_bridge.py` mirrors selected MQTT topics into ROS 2 and back.
 
 ## 6. Bringing the system back up after the Ubuntu update
 
-Recipe for the missing‑networking situation:
+Recipe for the missing‑networking situation. **This assumes standalone mode (§3.A)** — if you are running the routed variant from §3.B, swap step 4 for the DHCP‑profile recipe in §3.B.4.
 
 1. **Verify host shell**: `whoami` should be `control`; `~` should be `/home/control`. Group: `id` includes `dialout`. If not: `sudo usermod -a -G dialout control` and re‑login.
 2. **Re‑install Podman** if `podman --version` fails. Snippet from `copy.txt` is the working set of repository keys (the Kubic libcontainers source).
