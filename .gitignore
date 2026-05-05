@@ -3,6 +3,8 @@ docker/ros2-core/security/keystore/
 docker/web-dashboard/certs/server.key
 docker/web-dashboard/certs/server.crt
 docker/web-dashboard/.htpasswd
+.dell_ssh.py
+.tmp_probe.sh
 
 # Node.js
 node_modules/
