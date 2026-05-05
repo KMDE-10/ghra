@@ -9,6 +9,7 @@
 # are already built locally (localhost/docker_ros2-core:latest, ...-web-dashboard:latest)
 # and just brings them up if not running. Safe to re-run on a healthy stack — no-op.
 
+export PATH="$HOME/.local/bin:$PATH"
 cd "$(dirname "$0")/docker"
 
 if [[ "$1" == "--rebuild" ]]; then
@@ -21,9 +22,33 @@ if [[ "$1" == "--rebuild" ]]; then
 fi
 
 echo "=== GHRA: starting (idempotent, offline-safe) ==="
-if ! podman-compose up -d --no-build; then
-    echo "podman-compose up FAILED."
-    exit 1
+
+# podman-compose 1.4.1 unconditionally recreates containers on `up`, which
+# breaks idempotence (errors with "name already in use" on re-runs).
+# So we manage state directly: invoke `up` only when a container is missing,
+# otherwise just `podman start` any that aren't running.
+
+expected=(ghra-mosquitto ghra-ros2-core ghra-web-dashboard)
+
+missing=()
+for c in "${expected[@]}"; do
+    podman container exists "$c" 2>/dev/null || missing+=("$c")
+done
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Containers missing (${missing[*]}) — creating via podman-compose up..."
+    if ! podman-compose up -d --no-build; then
+        echo "podman-compose up FAILED."
+        exit 1
+    fi
+else
+    for c in "${expected[@]}"; do
+        state=$(podman inspect -f '{{.State.Status}}' "$c" 2>/dev/null)
+        if [[ "$state" != "running" ]]; then
+            echo "Starting $c (was $state)..."
+            podman start "$c" >/dev/null || { echo "Failed to start $c"; exit 1; }
+        fi
+    done
 fi
 
 sleep 3
